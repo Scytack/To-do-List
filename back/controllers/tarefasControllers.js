@@ -1,26 +1,32 @@
 const conexao = require('../db/conexao')
 
     // Rota Post
-exports.criarTarefas = (req, res) => {
-    const{titulo, descricao} = req.body
-
-    // Validações básicas
-    if (!titulo || typeof titulo != 'string' || titulo.trim() == '') {
-        return res.status(400).send('Nome da tarefa é obrigatoria e deve ser uma string não vazia.');
-    }
-    if (!descricao || typeof descricao != 'string' || descricao.trim() == '') {
-        return res.status(400).send('A descrição é obrigatoria e deve ser uma string não vazia.');
-    }
-
-    // Cria no banco
-    conexao.query(
-        'INSERT INTO tarefas (titulo, descricao) VALUES (?,?)',
-        [titulo, descricao],
-        (err) => {
-            if (err) return res.status(500).send('Erro ao criar tarefa');
-            res.status(201).send('Tarefa criada com sucesso!')
-    })
-};
+    exports.criarTarefas = (req, res) => {
+        const { titulo, descricao, usuarioId } = req.body;
+    
+        if (!titulo || typeof titulo !== 'string' || titulo.trim() === '') {
+            return res.status(400).send('Nome da tarefa é obrigatório.');
+        }
+        if (!descricao || typeof descricao !== 'string' || descricao.trim() === '') {
+            return res.status(400).send('A descrição é obrigatória.');
+        }
+        if (!usuarioId) {
+            return res.status(400).send('ID do usuário é obrigatório.');
+        }
+    
+        conexao.query(
+            'INSERT INTO tarefas (titulo, descricao, usuarioId) VALUES (?, ?, ?)',
+            [titulo, descricao, usuarioId],
+            (err) => {
+                if (err) {
+                    console.error('Erro ao criar tarefa:', err);
+                    return res.status(500).send('Erro ao criar tarefa');
+                }
+                res.status(201).send('Tarefa criada com sucesso!');
+            }
+        );
+    };
+    
 
     //Rota Get Geral
 exports.listarTarefas = (req, res) => {
@@ -52,9 +58,6 @@ exports.atualizarTarefas = (req, res) => {
     const { titulo, descricao, status } = req.body;
 
     // Validações básicas
-    if (!titulo || typeof titulo !== 'string' || titulo.trim() === '') {
-        return res.status(400).send('Nome da tarefa é obrigatório e deve ser uma string não vazia.');
-    }
     if (!descricao || typeof descricao !== 'string' || descricao.trim() === '') {
         return res.status(400).send('A descrição é obrigatória e deve ser uma string não vazia.');
     }
@@ -155,3 +158,24 @@ exports.criarEstimulandodata = (req, res) => {
         res.status(201).send('Tarefa criada com sucesso.');
     });
 };
+
+exports.listarTarefasPorUsuario = (req, res) => {
+    const usuarioId = req.query.usuarioId; // vem do frontend
+  
+    if (!usuarioId) {
+      return res.status(400).send('ID do usuário é obrigatório.');
+    }
+  
+    conexao.query(
+      'SELECT * FROM tarefas WHERE usuarioId = ?',
+      [usuarioId],
+      (err, results) => {
+        if (err) {
+          console.error(err);
+          return res.status(500).send('Erro interno.');
+        }
+        res.json(results);
+      }
+    );
+  };
+  

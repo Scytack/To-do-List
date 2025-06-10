@@ -1,4 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import TarefaForm from './components/TarefaForm';
+import ListarTarefas from './components/ListarTarefas';
+import CadastroUsuario from './components/CadastroUsuario';
+import LoginUsuario from './components/LoginUsuario';
 
 function App() {
   const [tarefas, setTarefas] = useState([]);
@@ -6,35 +10,58 @@ function App() {
   const [descricao, setDescricao] = useState('');
   const [status, setStatus] = useState('pendente');
   const [editandoId, setEditandoId] = useState(null);
-  const API_URL = 'http://localhost:3000/tarefas';
 
-  // Carrega tarefas do backend
+  const [nomeUsuario, setNomeUsuario] = useState('');
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+
+  const [aba, setAba] = useState('login');
+  const [usuarioLogado, setUsuarioLogado] = useState(null);
+
+  const API_TAREFAS = 'http://localhost:3000/tarefas';
+  const API_USUARIOS = 'http://localhost:3000/usuarios';
+
   const carregarTarefas = async () => {
+    if (!usuarioLogado) {
+      setTarefas([]);
+      return;
+    }
     try {
-      const res = await fetch(API_URL);
+      const res = await fetch(`${API_TAREFAS}/por-usuario?usuarioId=${usuarioLogado.id}`);
+      if (!res.ok) throw new Error('Erro ao carregar tarefas');
       const data = await res.json();
       setTarefas(data);
     } catch (error) {
-      console.error('Erro ao carregar tarefas:', error);
+      console.error(error);
+      alert('Erro ao carregar tarefas');
     }
   };
 
-  // Adiciona nova tarefa
   const enviarTarefa = async (e) => {
     e.preventDefault();
     if (!titulo.trim() || !descricao.trim()) {
       alert('Título e descrição são obrigatórios.');
       return;
     }
+    if (!usuarioLogado) {
+      alert('Usuário não logado.');
+      return;
+    }
+
     try {
-      const res = await fetch(API_URL, {
+      const res = await fetch(API_TAREFAS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titulo, descricao }),
+        body: JSON.stringify({
+          titulo,
+          descricao,
+          status,
+          usuarioId: usuarioLogado.id,
+        }),
       });
       if (!res.ok) {
-        const text = await res.text();
-        alert('Erro ao criar tarefa: ' + text);
+        const texto = await res.text();
+        alert('Erro ao criar tarefa: ' + texto);
         return;
       }
       alert('Tarefa criada com sucesso!');
@@ -46,23 +73,6 @@ function App() {
     }
   };
 
-  // Limpa o formulário
-  const limparFormulario = () => {
-    setTitulo('');
-    setDescricao('');
-    setStatus('pendente');
-    setEditandoId(null);
-  };
-
-  // Começa a editar uma tarefa
-  const iniciarEdicao = (tarefa) => {
-    setEditandoId(tarefa.id);
-    setTitulo(tarefa.titulo);
-    setDescricao(tarefa.descricao);
-    setStatus(tarefa.status);
-  };
-
-  // Atualiza tarefa existente via PUT
   const atualizarTarefa = async (e) => {
     e.preventDefault();
     if (!titulo.trim() || !descricao.trim()) {
@@ -70,14 +80,19 @@ function App() {
       return;
     }
     try {
-      const res = await fetch(`${API_URL}/${editandoId}`, {
+      const res = await fetch(`${API_TAREFAS}/${editandoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titulo, descricao, status }),
+        body: JSON.stringify({
+          titulo,
+          descricao,
+          status,
+          usuarioId: usuarioLogado.id,
+        }),
       });
       if (!res.ok) {
-        const text = await res.text();
-        alert('Erro ao atualizar tarefa: ' + text);
+        const texto = await res.text();
+        alert('Erro ao atualizar tarefa: ' + texto);
         return;
       }
       alert('Tarefa atualizada com sucesso!');
@@ -89,99 +104,206 @@ function App() {
     }
   };
 
-  const traduzirStatus = (s) => {
-    switch (s) {
-      case 'pendente': return 'Pendente';
-      case 'em progresso': return 'Em progresso';
-      case 'concluida': return 'Concluída';
-      default: return s;
+  const registrarUsuario = async (e) => {
+    e.preventDefault();
+    if (!nomeUsuario.trim() || !email.trim() || !senha.trim()) {
+      alert('Preencha todos os campos.');
+      return;
     }
+
+    try {
+      const res = await fetch(API_USUARIOS, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: nomeUsuario, email, senha }),
+      });
+
+      if (res.status === 409) {
+        const texto = await res.text();
+        alert('Erro: ' + texto);
+        return;
+      }
+
+      if (!res.ok) {
+        const texto = await res.text();
+        alert('Erro ao registrar: ' + texto);
+        return;
+      }
+
+      const usuario = await res.json();
+      alert('Usuário registrado com sucesso!');
+      setNomeUsuario('');
+      setEmail('');
+      setSenha('');
+
+      setUsuarioLogado(usuario);
+      setAba('tarefas');
+    } catch (error) {
+      alert('Erro ao conectar com o servidor.');
+      console.error(error);
+    }
+  };
+
+  const fazerLogin = async (e) => {
+    e.preventDefault();
+    if (!email.trim() || !senha.trim()) {
+      alert('Preencha todos os campos.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_USUARIOS}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha }),
+      });
+
+      if (!res.ok) {
+        const texto = await res.text();
+        alert('Erro: ' + texto);
+        return;
+      }
+
+      const usuario = await res.json();
+      alert('Login efetuado com sucesso!');
+      setUsuarioLogado(usuario);
+      setEmail('');
+      setSenha('');
+      setAba('tarefas');
+    } catch (error) {
+      alert('Erro ao conectar com o servidor.');
+      console.error(error);
+    }
+  };
+
+  const limparFormulario = () => {
+    setTitulo('');
+    setDescricao('');
+    setStatus('pendente');
+    setEditandoId(null);
+  };
+
+  const iniciarEdicao = (tarefa) => {
+    setEditandoId(tarefa.id);
+    setTitulo(tarefa.titulo);
+    setDescricao(tarefa.descricao);
+    setStatus(tarefa.status);
   };
 
   useEffect(() => {
     carregarTarefas();
-  }, []);
+  }, [usuarioLogado]);
 
   return (
-    <div style={{ padding: 20, maxWidth: 600, margin: 'auto' }}>
-      <h1>Lista de Tarefas</h1>
-
-      <form onSubmit={editandoId ? atualizarTarefa : enviarTarefa} style={{ marginBottom: 20 }}>
-        <div>
-          <label><b>Título:</b></label><br />
-          <input
-            value={titulo}
-            onChange={(e) => setTitulo(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
-            placeholder="Digite o título da tarefa"
-          />
-        </div>
-
-        <div>
-          <label><b>Descrição:</b></label><br />
-          <textarea
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            style={{ width: '100%', padding: 8, minHeight: 80 }}
-            placeholder="Digite a descrição"
-          />
-        </div>
-
-        <div>
-          <label><b>Status:</b></label><br />
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            style={{ width: '100%', padding: 8 }}
-            disabled={editandoId === null} // só permite mudar status ao editar
-          >
-            <option value="pendente">Pendente</option>
-            <option value="em progresso">Em progresso</option>
-            <option value="concluida">Concluída</option>
-          </select>
-        </div>
-
-        <button type="submit" style={{ marginTop: 10, padding: '10px 20px' }}>
-          {editandoId ? 'Atualizar Tarefa' : 'Adicionar Tarefa'}
-        </button>
-        {editandoId && (
+    <div
+      style={{
+        padding: 20,
+        maxWidth: 600,
+        margin: 'auto',
+        backgroundColor: '#f7f9fc',
+        borderRadius: 10,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+        fontFamily: 'Arial, sans-serif',
+      }}
+    >
+      {(aba === 'login' || aba === 'cadastro') && (
+        <div style={{ marginBottom: 20, textAlign: 'center' }}>
           <button
-            type="button"
-            onClick={limparFormulario}
-            style={{ marginLeft: 10, padding: '10px 20px' }}
+            onClick={() => setAba('login')}
+            disabled={aba === 'login'}
+            style={{
+              marginRight: 10,
+              padding: '8px 16px',
+              borderRadius: 5,
+              backgroundColor: aba === 'login' ? '#007bff' : '#e0e0e0',
+              color: aba === 'login' ? 'white' : '#333',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
-            Cancelar
+            Login
           </button>
-        )}
-      </form>
-
-      <h2>Tarefas Cadastradas</h2>
-      {tarefas.length === 0 && <p>Nenhuma tarefa cadastrada.</p>}
-      {[...tarefas].reverse().map((tarefa) => (
-        <div key={tarefa.id} style={{ border: '1px solid #ccc', padding: 12, marginBottom: 10 }}>
-          <strong>{tarefa.titulo}</strong><br />
-          <small>{tarefa.descricao}</small><br />
-          <b>Status:</b> {traduzirStatus(tarefa.status)}<br />
-          <b>Criado em:</b> {new Date(tarefa.data_criacao).toLocaleDateString()}<br />
-          <b>Concluído em:</b> {tarefa.data_conclusao ? new Date(tarefa.data_conclusao).toLocaleDateString() : '—'}<br />
-          {tarefa.status !== 'concluida' ? (
-            <button
-              onClick={() => iniciarEdicao(tarefa)}
-              style={{ marginTop: 5, padding: '5px 10px' }}
-            >
-              Editar
-            </button>
-          ) : (
-            <button
-              disabled
-              style={{ marginTop: 5, padding: '5px 10px', opacity: 0.5, cursor: 'not-allowed' }}
-              title="Tarefa concluída não pode ser editada"
-            >
-              Editar
-            </button>
-          )}
+          <button
+            onClick={() => setAba('cadastro')}
+            disabled={aba === 'cadastro'}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 5,
+              backgroundColor: aba === 'cadastro' ? '#007bff' : '#e0e0e0',
+              color: aba === 'cadastro' ? 'white' : '#333',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            Cadastro
+          </button>
         </div>
-      ))}
+      )}
+
+      {aba === 'login' && (
+        <LoginUsuario
+          email={email}
+          senha={senha}
+          setEmail={setEmail}
+          setSenha={setSenha}
+          fazerLogin={fazerLogin}
+        />
+      )}
+
+      {aba === 'cadastro' && (
+        <CadastroUsuario
+          nomeUsuario={nomeUsuario}
+          email={email}
+          senha={senha}
+          setNomeUsuario={setNomeUsuario}
+          setEmail={setEmail}
+          setSenha={setSenha}
+          registrarUsuario={registrarUsuario}
+        />
+      )}
+
+      {aba === 'tarefas' && usuarioLogado && (
+        <>
+          <h2 style={{ textAlign: 'center', color: '#333' }}>
+            Bem-vindo, {usuarioLogado.nome}
+          </h2>
+
+          <button
+            onClick={() => {
+              setUsuarioLogado(null);
+              setTarefas([]);
+              setAba('login');
+            }}
+            style={{
+              display: 'block',
+              margin: '10px auto 20px',
+              backgroundColor: '#dc3545',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: 5,
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            Sair
+          </button>
+
+          <TarefaForm
+            titulo={titulo}
+            descricao={descricao}
+            status={status}
+            editandoId={editandoId}
+            setTitulo={setTitulo}
+            setDescricao={setDescricao}
+            setStatus={setStatus}
+            limparFormulario={limparFormulario}
+            enviarTarefa={enviarTarefa}
+            atualizarTarefa={atualizarTarefa}
+          />
+
+          <ListarTarefas tarefas={tarefas} iniciarEdicao={iniciarEdicao} />
+        </>
+      )}
     </div>
   );
 }
